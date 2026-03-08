@@ -42,4 +42,22 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     }
+
+    fun addFavorite(id: String, name: String, thumb: String?) {
+        viewModelScope.launch {
+            repo.add(id, name, thumb)
+        }
+    }
+
+    fun removeFavorite(id: String) {
+        viewModelScope.launch {
+            repo.remove(id)
+        }
+    }
+
+    fun isFavorite(id: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            onResult(repo.isFavorite(id))
+        }
+    }
 }

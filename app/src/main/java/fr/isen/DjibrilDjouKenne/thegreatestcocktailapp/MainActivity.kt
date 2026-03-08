@@ -44,8 +44,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.composable
+import fr.isen.DjibrilDjouKenne.thegreatestcocktailapp.ui.FavoritesViewModel
 import fr.isen.DjibrilDjouKenne.thegreatestcocktailapp.ui.RandomCocktailViewModel
-
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,35 +59,43 @@ class MainActivity : ComponentActivity() {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val navController = rememberNavController()
                 val vm: RandomCocktailViewModel = viewModel()
-
+                val favoritesVm: FavoritesViewModel = viewModel()
+                val randomState = vm.state.collectAsState().value
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    topBar = { TGTopAppBar(snackbarHostState, navController, onRandom = { vm.loadRandom() }) },
+                    topBar = {
+                        TGTopAppBar(
+                            snackbarHostState = snackbarHostState,
+                            navController = navController,
+                            onRandom = { vm.loadRandom() },
+                            currentDrinkId = randomState.drink?.idDrink,
+                            currentDrinkName = randomState.drink?.strDrink,
+                            currentDrinkThumb = randomState.drink?.strDrinkThumb,
+                            favoritesVm = favoritesVm
+                        )
+                    },
                     bottomBar = { TGBottomBar(navController) },
-                    snackbarHost = {
-                        SnackbarHost(snackbarHostState)
-                    }
-
-                )
-                        { innerPadding ->
-//                        DetailCocktailScreen(modifier = Modifier.padding(innerPadding))
-//                            CategoriesScreen(modifier = Modifier.padding(innerPadding))
-                            NavHost(
-                                navController = navController,
-                                startDestination = Screen.Random.route,
-                                modifier = Modifier.padding(innerPadding)
-                            ) {
-                                composable(Screen.Random.route) {
-                                    DetailCocktailScreen(modifier = Modifier.fillMaxSize(),vm = vm)
-                                }
-                                composable(Screen.Categories.route) {
-                                    CategoriesScreen(modifier = Modifier.fillMaxSize())
-                                }
-                                composable(Screen.Favorites.route) {
-                                    FavoritesScreen(modifier = Modifier.fillMaxSize())
-                                }
-                            }
+                    snackbarHost = { SnackbarHost(snackbarHostState) }
+                ) { innerPadding ->
+                    NavHost(
+                        navController = navController,
+                        startDestination = Screen.Random.route,
+                        modifier = Modifier.padding(innerPadding)
+                    ) {
+                        composable(Screen.Random.route) {
+                            DetailCocktailScreen(
+                                modifier = Modifier.fillMaxSize(),
+                                vm = vm
+                            )
                         }
+                        composable(Screen.Categories.route) {
+                            CategoriesScreen(modifier = Modifier.fillMaxSize())
+                        }
+                        composable(Screen.Favorites.route) {
+                            FavoritesScreen(modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                }
 
                         }
             }
@@ -125,10 +136,14 @@ fun Chip(text: String, bg: Color) {
 fun TGTopAppBar(
     snackbarHostState: SnackbarHostState,
     navController: NavController,
-    onRandom: () -> Unit
+    onRandom: () -> Unit,
+    currentDrinkId: String?,
+    currentDrinkName: String?,
+    currentDrinkThumb: String?,
+    favoritesVm: FavoritesViewModel
 ) {
     val scope = rememberCoroutineScope()
-    val isFav = rememberSaveable { mutableStateOf(false) }
+    var isFav by rememberSaveable { mutableStateOf(false) }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val route = navBackStackEntry?.destination?.route
@@ -140,30 +155,56 @@ fun TGTopAppBar(
         else -> ""
     }
 
+    LaunchedEffect(currentDrinkId) {
+        if (currentDrinkId != null) {
+            favoritesVm.isFavorite(currentDrinkId) { result ->
+                isFav = result
+            }
+        } else {
+            isFav = false
+        }
+    }
+
     CenterAlignedTopAppBar(
         title = { Text(title) },
         actions = {
             if (route == Screen.Random.route) {
                 IconButton(onClick = {
                     onRandom()
-                    scope.launch { snackbarHostState.showSnackbar("Nouveau cocktail ✨") }
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Nouveau cocktail ✨")
+                    }
                 }) {
                     Icon(Icons.Default.Refresh, contentDescription = "Random")
                 }
 
                 IconToggleButton(
-                    checked = isFav.value,
+                    checked = isFav,
                     onCheckedChange = { checked ->
-                        isFav.value = checked
-                        scope.launch {
-                            snackbarHostState.showSnackbar(
-                                if (checked) "Ajouté aux favoris" else "Retiré des favoris"
-                            )
+                        val id = currentDrinkId
+                        val name = currentDrinkName
+                        val thumb = currentDrinkThumb
+
+                        if (id != null && name != null) {
+                            isFav = checked
+
+                            if (checked) {
+                                favoritesVm.addFavorite(id, name, thumb)
+                            } else {
+                                favoritesVm.removeFavorite(id)
+                            }
+
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (checked) "Ajouté aux favoris"
+                                    else "Retiré des favoris"
+                                )
+                            }
                         }
                     }
                 ) {
                     Icon(
-                        imageVector = if (isFav.value) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Favori"
                     )
                 }
@@ -171,7 +212,6 @@ fun TGTopAppBar(
         }
     )
 }
-
 @Composable
 fun IngredientsCard(
     ingredients: List<Pair<String, String>>,

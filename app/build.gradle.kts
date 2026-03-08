@@ -67,7 +67,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("io.coil-kt.coil3:coil-compose:3.0.0")
     implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
-
+    implementation("androidx.compose.material:material-icons-extended")
     val roomVersion = "2.8.4"
 
     implementation("androidx.room:room-runtime:$roomVersion")
